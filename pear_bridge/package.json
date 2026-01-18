@@ -1,0 +1,22 @@
+{
+  "name": "pear_bridge",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "corestore": "^7.7.0",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "hypercore": "^11.21.6",
+    "hyperdrive": "^13.1.1",
+    "hyperswarm": "^4.16.0",
+    "localdrive": "^2.2.0"
+  }
+}

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGENT ZERO // MISSION CONTROL</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg: #050510;
+            --panel: #0F172A;
+            --accent: #00F0FF;
+            /* Cyberpunk Cyan */
+            --accent-dim: rgba(0, 240, 255, 0.1);
+            --text: #E2E8F0;
+            --text-dim: #64748B;
+            --danger: #FF2A6D;
+            --success: #05FF00;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            overflow: hidden;
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 60px 1fr 200px;
+        }
+
+        /* HEADER */
+        header {
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            font-size: 18px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .blink {
+            animation: blink 1.5s infinite;
+            width: 10px;
+            height: 10px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        @keyframes blink {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 32px;
+        }
+
+        .stat-item {
+            text-align: right;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* MAIN LAYOUT */
+        .workspace {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        aside {
+            border-right: 1px solid #334155;
+            background: var(--panel);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+        }
+
+        .peer-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #334155;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .peer-card:hover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .peer-id {
+            font-size: 11px;
+            color: var(--accent);
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .peer-role {
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .peer-tags {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            background: #334155;
+            border-radius: 2px;
+            color: #94A3B8;
+        }
+
+        .btn {
+            background: var(--accent-dim);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            width: 100%;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-family: inherit;
+            font-size: 12px;
+            transition: 0.2s;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn.secondary {
+            border-color: var(--text-dim);
+            color: var(--text-dim);
+            background: transparent;
+        }
+
+        .btn.secondary:hover {
+            border-color: #fff;
+            color: #fff;
+        }
+
+        /* GRAPH AREA */
+        #network-graph {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #050510 100%);
+        }
+
+        /* BOTTOM LOGS */
+        #logs-panel {
+            border-top: 1px solid #334155;
+            background: #000;
+            padding: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .log-time {
+            color: var(--text-dim);
+            min-width: 70px;
+        }
+
+        .log-type {
+            min-width: 80px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .log-msg {
+            color: #fff;
+        }
+
+        .type-SYSTEM {
+            color: var(--accent);
+        }
+
+        .type-JOIN {
+            color: var(--success);
+        }
+
+        .type-LEAVE {
+            color: var(--danger);
+        }
+
+        .type-CONTRACT {
+            color: #F59E0B;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1><span class="blink"></span> AGENT ZERO // SWARM</h1>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">Total Nodes</div>
+                <div class="stat-value" id="nodeCount">...</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Network Status</div>
+                <div class="stat-value" style="color: var(--success)">ONLINE</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">My ID</div>
+                <div class="stat-value" style="font-size: 12px; font-family: monospace; opacity: 0.7;" id="myIdShort">
+                    ...</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="workspace">
+        <aside>
+            <div class="section-title">Identity</div>
+            <div class="peer-card">
+                <div class="peer-id" id="myFullId">Loading...</div>
+                <div class="peer-role">
+                    <span id="myRole">...</span>
+                </div>
+                <!-- Enhanced Inventory View -->
+                <div class="peer-specs" id="mySpecs" style="font-size: 10px; color: #888; margin-top: 5px;"></div>
+                <div class="peer-tags" id="mySkills"></div>
+            </div>
+
+            <div class="section-title">Peer Manifests</div>
+            <div id="peerList">
+                <!-- Peers Injected Here -->
+            </div>
+
+            <button onclick="toggleEntropy()" id="entropyBtn" class="btn secondary">Toggle Entropy (Chaos)</button>
+        </aside>
+
+        <main id="network-graph">
+            <!-- VisJS Graph -->
+        </main>
+    </div>
+
+    <div id="logs-panel" id="logs">
+        <!-- Logs Injected Here -->
+    </div>
+
+    <script>
+        // --- State ---
+        let myId = '';
+        let knownPeers = new Set();
+        let nodes, edges, network;
+
+        // --- Logger ---
+        function log(type, msg) {
+            const el = document.getElementById('logs-panel');
+            const row = document.createElement('div');
+            row.className = 'log-entry';
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            row.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-type type-${type}">${type}</span> <span class="log-msg">${msg}</span>`;
+            el.prepend(row); // Newest top (since flex-direction is reverse, actually simplest is to prepend to top of logic but visual bottom)
+            // Actually let's just prepend to DOM, visual layout handles it.
+        }
+
+        // --- Graph Init ---
+        function initGraph() {
+            nodes = new vis.DataSet([]);
+            edges = new vis.DataSet([]);
+
+            const container = document.getElementById('network-graph');
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 15,
+                    font: { size: 12, color: '#ffffff', face: 'monospace' },
+                    borderWidth: 2,
+                    borderWidthSelected: 4,
+                },
+                edges: { width: 1, color: { color: '#334155', highlight: '#00F0FF' }, smooth: true },
+                physics: {
+                    stabilization: false,
+                    barnesHut: { gravitationalConstant: -2000, springConstant: 0.04 }
+                }
+            };
+            network = new vis.Network(container, data, options);
+        }
+
+        // Extract raw Ed25519 key from DER-encoded SPKI (skip 22-byte/44-char header)
+        const getRawKey = (derHex) => derHex && derHex.length > 44 ? derHex.slice(44) : derHex;
+
+        // --- API Calls ---
+        async function fetchInfo() {
+            try {
+                const res = await fetch('/info');
+                const data = await res.json();
+                myId = data.peerId;
+                const rawId = getRawKey(myId);
+                document.getElementById('myIdShort').innerText = rawId.substring(0, 8);
+                document.getElementById('myFullId').innerText = rawId.substring(0, 24) + '...';
+
+                // Update My Manifest
+                const m = data.manifest || {};
+                document.getElementById('myRole').innerText = m.role || 'Unknown';
+
+                // Show Specs/Inventory if available
+                const specs = m.specs || {};
+                const inventory = specs.inventory || [];
+                if (inventory.length > 0) {
+                    const toolsList = inventory.map(t => `<div style="color:#00F0FF">> ${t.name}</div>`).join('');
+                    document.getElementById('mySpecs').innerHTML = `AVAILABLE TOOLS:<br>${toolsList}`;
+                }
+
+                const skillsHtml = (m.skills || []).map(s => `<span class="tag">${s}</span>`).join('');
+                document.getElementById('mySkills').innerHTML = skillsHtml || '<span class="tag">none</span>';
+
+                // Add Self Node
+                if (!nodes.get(myId)) {
+                    nodes.add({
+                        id: myId,
+                        label: `ME (${m.role || 'Agent'})`,
+                        color: { background: '#00F0FF', border: '#fff' }
+                    });
+                    log('SYSTEM', 'Dashboard Initialized. Identity Confirmed.');
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchPeers() {
+            try {
+                const res = await fetch('/peers');
+                const data = await res.json();
+
+                // Update Stats
+                document.getElementById('nodeCount').innerText = data.count + 1; // +1 for Me
+
+                const currentPeerIds = new Set();
+                const listEl = document.getElementById('peerList');
+                let listHtml = '';
+
+                data.details.forEach(p => {
+                    const pid = p.publicKey;
+                    currentPeerIds.add(pid);
+                    const m = p.manifest || {};
+                    const role = m.role || 'Unknown';
+                    const skills = m.skills || [];
+                    const agentId = m.agent_id || 'Anon';
+
+                    // Update UI List
+                    const rawPid = getRawKey(pid);
+                    listHtml += `
+                        <div class="peer-card">
+                            <div class="peer-id">${agentId} (${rawPid.substring(0, 6)})</div>
+                            <div class="peer-role">${role}</div>
+                            <div class="peer-specs" style="font-size: 10px; color: #888; margin-top: 5px;">
+                                ${(m.specs && m.specs.inventory) ? 'TOOLS:<br>' + m.specs.inventory.map(t => `<span style="color:#00F0FF">> ${t.name}</span><br>`).join('') : ''}
+                            </div>
+                            <div class="peer-tags">
+                                ${skills.map(s => `<span class="tag">${s}</span>`).join('')}
+                            </div>
+                        </div>
+                    `;
+
+                    // Update Graph
+                    if (!nodes.get(pid)) {
+                        nodes.add({
+                            id: pid,
+                            label: `${agentId}\n${role}`,
+                            color: { background: '#0F172A', border: '#FF2A6D' }
+                        });
+                        edges.add({ from: myId, to: pid });
+                        log('JOIN', `New Peer Detected: ${agentId} (${role})`);
+                        knownPeers.add(pid);
+                    }
+                });
+
+                // Check for Leaves
+                knownPeers.forEach(pid => {
+                    if (!currentPeerIds.has(pid)) {
+                        nodes.remove(pid);
+                        log('LEAVE', `Peer Disconnected: ${getRawKey(pid).substring(0, 8)}`);
+                        knownPeers.delete(pid);
+                    }
+                });
+
+                listEl.innerHTML = listHtml;
+
+            } catch (e) { console.error(e); }
+        }
+
+        async function toggleEntropy() {
+            const res = await fetch('/entropy', { method: 'POST' });
+            const data = await res.json();
+            const btn = document.getElementById('entropyBtn');
+            if (data.enabled) {
+                btn.innerText = "DISABLE ENTROPY";
+                btn.style.borderColor = "#FF2A6D";
+                btn.style.color = "#FF2A6D";
+                log('SYSTEM', 'Entropy Protocol ENABLED. Chaos imminent.');
+            } else {
+                btn.innerText = "ENABLE ENTROPY";
+                btn.style = "";
+                log('SYSTEM', 'Entropy Protocol DISABLED. Stabilizing.');
+            }
+        }
+
+        // --- Loop ---
+        initGraph();
+        fetchInfo();
+        fetchPeers();
+        setInterval(fetchPeers, 2000);
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,48 @@
+# Pear Bridge - P2P Sidecar for Agent Zero
+# Node.js container with native Hyperswarm dependencies
+
+FROM node:20-slim
+
+# Install build tools for native modules (hyperswarm uses udx-native)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Security: create non-root user
+RUN groupadd -g 1001 peerbridge && \
+    useradd -u 1001 -g peerbridge -m peerbridge
+
+WORKDIR /app
+
+# Copy package files first for layer caching
+COPY --chown=peerbridge:peerbridge package*.json ./
+
+# Install all dependencies (native modules need build tools)
+# Using npm install since package-lock.json may not exist
+RUN npm install --build-from-source
+
+# Copy application code
+COPY --chown=peerbridge:peerbridge . .
+
+# Create data directory with proper permissions
+RUN mkdir -p /app/node_data && chown -R peerbridge:peerbridge /app/node_data
+
+# Environment defaults
+ENV PORT=3000 \
+    DATA_DIR=/app/node_data \
+    NODE_ENV=production
+
+# Expose the HTTP API port
+EXPOSE 3000
+
+# Switch to non-root user
+USER peerbridge
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
+
+CMD ["node", "index.js"]

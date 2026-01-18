@@ -1,0 +1,60 @@
+# Ignore common unwanted files globally
+**/.DS_Store
+**/.env
+**/__pycache__/
+*.py[cod]
+**/.conda/
+
+#Ignore IDE files
+.cursor/
+.windsurf/
+.claude/settings.local.json
+
+# ignore test files in root dir
+/*.test.py
+
+# Ignore all contents of the virtual environment directory
+.venv/
+**/node_modules/
+
+# Handle memory directory
+memory/**
+!memory/**/
+
+# Handle logs directory
+logs/*
+
+# Handle tmp and usr directory
+tmp/*
+usr/*
+
+# Handle knowledge directory
+knowledge/**
+!knowledge/**/
+# Explicitly allow the default folder in knowledge
+!knowledge/default/
+!knowledge/default/**
+
+# Handle instruments directory
+instruments/**
+!instruments/**/
+# Explicitly allow the default folder in instruments
+!instruments/default/
+!instruments/default/**
+
+# Global rule to include .gitkeep files anywhere
+!**/.gitkeep
+
+# Handle Pear Runtime Secrets & Data
+**/identity.json
+**/blackboard/
+**/storage/
+**/node_b/
+bridge_log.txt
+p2p_error.log
+
+# for browser-use
+agent_history.gif
+
+.claude/
+.beads/

@@ -1,0 +1,193 @@
+# Multi-Agent Swarm Stack
+# Three nodes: Sophie (Claude), Ruby (Codex), Agent Zero
+#
+# Usage:
+#   docker-compose -f docker/swarm/docker-compose.multinode.yml up -d
+#
+# MCP Endpoints:
+#   Sophie:     http://localhost:8000/mcp  (already configured)
+#   Ruby:       http://localhost:8001/mcp
+#   Agent Zero: http://localhost:8002/mcp
+#
+# All nodes auto-join topic "agent-zero-swarm-poc" and discover each other via DHT
+
+services:
+  # ============================================
+  # NODE A: Sophie (Claude Code) - Already exists
+  # ============================================
+  bridge-sophie:
+    build:
+      context: ../../pear_bridge
+      dockerfile: ../docker/swarm/Dockerfile.bridge
+    container_name: swarm-bridge-sophie
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+      - NODE_NAME=Sophie
+    ports:
+      - "3000:3000"
+    volumes:
+      - bridge-sophie-data:/app/node_data
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  mcp-sophie:
+    build:
+      context: ../../swarm_mcp
+      dockerfile: Dockerfile
+    container_name: swarm-mcp-sophie
+    environment:
+      - BRIDGE_URL=http://bridge-sophie:3000
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+    ports:
+      - "8000:8000"
+    depends_on:
+      bridge-sophie:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ============================================
+  # NODE B: Ruby (OpenAI Codex)
+  # ============================================
+  bridge-ruby:
+    build:
+      context: ../../pear_bridge
+      dockerfile: ../docker/swarm/Dockerfile.bridge
+    container_name: swarm-bridge-ruby
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+      - NODE_NAME=Ruby
+    ports:
+      - "3001:3000"
+    volumes:
+      - bridge-ruby-data:/app/node_data
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  mcp-ruby:
+    build:
+      context: ../../swarm_mcp
+      dockerfile: Dockerfile
+    container_name: swarm-mcp-ruby
+    environment:
+      - BRIDGE_URL=http://bridge-ruby:3000
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+    ports:
+      - "8001:8000"
+    depends_on:
+      bridge-ruby:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ============================================
+  # NODE C: Agent Zero (Web UI)
+  # ============================================
+  bridge-agent0:
+    build:
+      context: ../../pear_bridge
+      dockerfile: ../docker/swarm/Dockerfile.bridge
+    container_name: swarm-bridge-agent0
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+      - NODE_NAME=AgentZero
+    ports:
+      - "3002:3000"
+    volumes:
+      - bridge-agent0-data:/app/node_data
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  mcp-agent0:
+    build:
+      context: ../../swarm_mcp
+      dockerfile: Dockerfile
+    container_name: swarm-mcp-agent0
+    environment:
+      - BRIDGE_URL=http://bridge-agent0:3000
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+    ports:
+      - "8002:8000"
+    depends_on:
+      bridge-agent0:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Agent Zero Web UI (optional - uses MCP for swarm)
+  agent0:
+    image: agent0ai/agent-zero:latest
+    container_name: swarm-agent0
+    ports:
+      - "5000:5000"
+    environment:
+      - API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    volumes:
+      - ./mcp-settings-agent0.json:/app/tmp/settings.json:ro
+      - agent0-work:/app/work_dir
+    depends_on:
+      mcp-agent0:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+
+volumes:
+  bridge-sophie-data:
+  bridge-ruby-data:
+  bridge-agent0-data:
+  agent0-work:
+
+networks:
+  swarm-net:
+    driver: bridge

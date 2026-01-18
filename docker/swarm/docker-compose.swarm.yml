@@ -1,0 +1,166 @@
+# =============================================================================
+# Agent Zero: Multiplayer Mode - Local Development Swarm
+# =============================================================================
+#
+# PURPOSE: Developer verification harness for P2P features
+#   This simulates multiple Agent Zero nodes on a single machine to test:
+#   - Hyperswarm DHT peer discovery
+#   - Cross-agent messaging (broadcast/inbox)
+#   - Shared memory and storage
+#
+# NOTE: This is NOT production deployment. In production, each user runs
+#       ONE agent on their own PC, connecting to real peers over the internet.
+#
+# =============================================================================
+#
+# QUICK START:
+#   cd /path/to/agent-zero
+#   cp docker/swarm/.env.swarm.example docker/swarm/.env.swarm
+#   docker-compose -f docker/swarm/docker-compose.swarm.yml --env-file docker/swarm/.env.swarm up -d --build
+#
+# VERIFY:
+#   curl http://localhost:3000/health   # Bridge A health
+#   curl http://localhost:3001/health   # Bridge B health
+#   curl http://localhost:3000/peers    # Should show peer count after ~30s
+#
+# WEB UIs:
+#   http://localhost:50080  # Agent A
+#   http://localhost:50081  # Agent B
+#
+# INTEGRATION TEST:
+#   python tests/test_multinode_integration.py
+#
+# TEARDOWN:
+#   docker-compose -f docker/swarm/docker-compose.swarm.yml down -v
+#
+# =============================================================================
+
+# YAML Anchors for DRY configuration
+x-bridge-common: &bridge-common
+  build:
+    context: ../../pear_bridge
+    dockerfile: ../docker/swarm/Dockerfile.bridge
+  networks:
+    - swarm-net
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        memory: ${BRIDGE_MEM_LIMIT:-256m}
+        cpus: '${BRIDGE_CPU_LIMIT:-0.5}'
+  logging:
+    driver: json-file
+    options:
+      max-size: ${LOG_MAX_SIZE:-10m}
+      max-file: '${LOG_MAX_FILES:-3}'
+
+x-agent-common: &agent-common
+  build:
+    context: ../..
+    dockerfile: DockerfileLocal
+  networks:
+    - swarm-net
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        memory: ${AGENT_MEM_LIMIT:-2g}
+        cpus: '${AGENT_CPU_LIMIT:-1.0}'
+  logging:
+    driver: json-file
+    options:
+      max-size: ${LOG_MAX_SIZE:-10m}
+      max-file: '${LOG_MAX_FILES:-3}'
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+networks:
+  swarm-net:
+    driver: bridge
+
+services:
+  # ============= NODE A =============
+  bridge-a:
+    <<: *bridge-common
+    container_name: swarm-bridge-a
+    hostname: bridge-a
+    ports:
+      - "${BRIDGE_A_PORT:-3000}:3000"
+    volumes:
+      - bridge-a-data:/app/node_data
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+      - SWARM_TOPIC=${SWARM_TOPIC:-agent-zero-swarm}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  agent-a:
+    <<: *agent-common
+    image: agent-zero-swarm:local
+    container_name: swarm-agent-a
+    hostname: agent-a
+    depends_on:
+      bridge-a:
+        condition: service_healthy
+    ports:
+      - "${AGENT_A_PORT:-50080}:80"
+    volumes:
+      - agent-a-data:/a0
+    environment:
+      - SWARM_BRIDGE_URL=http://bridge-a:3000
+      - AGENT_NAME=${AGENT_NAME_PREFIX:-Agent}-A
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+  # ============= NODE B =============
+  bridge-b:
+    <<: *bridge-common
+    container_name: swarm-bridge-b
+    hostname: bridge-b
+    ports:
+      - "${BRIDGE_B_PORT:-3001}:3000"
+    volumes:
+      - bridge-b-data:/app/node_data
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+      - SWARM_TOPIC=${SWARM_TOPIC:-agent-zero-swarm}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  agent-b:
+    <<: *agent-common
+    image: agent-zero-swarm:local  # Reuses image built by agent-a
+    container_name: swarm-agent-b
+    hostname: agent-b
+    depends_on:
+      bridge-b:
+        condition: service_healthy
+      agent-a:
+        condition: service_started  # Ensures image is built first
+    ports:
+      - "${AGENT_B_PORT:-50081}:80"
+    volumes:
+      - agent-b-data:/a0
+    environment:
+      - SWARM_BRIDGE_URL=http://bridge-b:3000
+      - AGENT_NAME=${AGENT_NAME_PREFIX:-Agent}-B
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+volumes:
+  bridge-a-data:
+  bridge-b-data:
+  agent-a-data:
+  agent-b-data:

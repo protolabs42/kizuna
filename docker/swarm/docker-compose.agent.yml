@@ -1,0 +1,87 @@
+# Agent Zero + Swarm MCP Integration Stack
+# Uses official agent0ai/agent-zero image with zero modifications
+#
+# Usage:
+#   docker-compose -f docker/swarm/docker-compose.agent.yml up -d
+#
+# Architecture:
+#   agent (agent0ai/agent-zero) -> swarm-mcp (MCP server) -> bridge (P2P sidecar)
+
+services:
+  # Official Agent Zero - UNMODIFIED
+  agent:
+    image: agent0ai/agent-zero:latest
+    container_name: swarm-agent
+    ports:
+      - "5000:5000"
+    environment:
+      - API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    volumes:
+      # Mount MCP settings config
+      - ./mcp-settings.json:/app/tmp/settings.json:ro
+      # Persist agent work directory
+      - agent-work:/app/work_dir
+    depends_on:
+      swarm-mcp:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+
+  # Our MCP Server - bridges agent0 to swarm
+  swarm-mcp:
+    build:
+      context: ../../swarm_mcp
+      dockerfile: Dockerfile
+    container_name: swarm-mcp
+    environment:
+      - BRIDGE_URL=http://bridge:3000
+      - MCP_PORT=8000
+      - MCP_HOST=0.0.0.0
+    ports:
+      - "8000:8000"
+    depends_on:
+      bridge:
+        condition: service_healthy
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Our P2P Bridge - Hyperswarm networking
+  bridge:
+    build:
+      context: ../../pear_bridge
+      dockerfile: ../docker/swarm/Dockerfile.bridge
+    container_name: swarm-bridge
+    environment:
+      - PORT=3000
+      - DATA_DIR=/app/node_data
+    ports:
+      - "3000:3000"
+    volumes:
+      - bridge-data:/app/node_data
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  agent-work:
+  bridge-data:
+
+networks:
+  swarm-net:
+    driver: bridge
