@@ -2,7 +2,7 @@
 
 *Part of the Kizuna (絆) project - P2P infrastructure for AI agent collaboration*
 
-> **Note**: KTP is Kizuna's native P2P task protocol designed for mesh networks. It is not compliant with Google's A2A protocol, which uses HTTP/JSON-RPC 2.0. A future A2A-compliant HTTP gateway is planned for interoperability with external agents.
+> **Note**: KTP is Kizuna's native P2P task protocol designed for mesh networks. For interoperability with external agents using Google's A2A protocol (HTTP/JSON-RPC 2.0), see the [A2A Gateway](./a2a-gateway.md).
 
 ## Overview
 

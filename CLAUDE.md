@@ -116,6 +116,22 @@ Task requests to offline peers return `202 Accepted` with `queued_for_retry` sta
 
 See `docs/ktp-protocol.md` for full protocol specification.
 
+### A2A Gateway (Google A2A Protocol)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/.well-known/agent-card.json` | GET | Agent Card discovery (public) |
+| `/a2a/v1` | POST | JSON-RPC 2.0 dispatcher (auth required) |
+
+**JSON-RPC Methods:**
+| Method | Description |
+|--------|-------------|
+| `message/send` | Send message, create task |
+| `tasks/get` | Get single task by ID |
+| `tasks/list` | List all tasks |
+
+See `docs/a2a-gateway.md` for full A2A protocol documentation.
+
 ## MCP Tools
 
 When an agent connects to Kizuna's MCP server, it gains these tools:

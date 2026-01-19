@@ -964,6 +964,24 @@ app.get('/capabilities/search', requireAuth, (req, res) => {
     })
 })
 
+// --- A2A GATEWAY ---
+const { a2aRouter, initA2AGateway } = require('./a2a-gateway')
+initA2AGateway({
+    sentTasks,
+    receivedTasks,
+    deadLetterTasks,
+    myManifest,
+    myPeerId,
+    myPeerIdRaw,
+    API_KEY,
+    PORT,
+    requireAuth,
+    signMessage,
+    peers,
+    generateTaskId
+})
+app.use(a2aRouter)
+
 // Secure by default: localhost-only unless API key is set
 const bindHost = API_KEY ? '0.0.0.0' : (BIND_HOST || '127.0.0.1')
 
