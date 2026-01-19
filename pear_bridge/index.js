@@ -122,6 +122,38 @@ const activeTopics = new Map() // topicName -> { topicBuffer, hasSecret, joinedA
 const sentTasks = new Map()     // task_id -> { target, status, payload, createdAt, deadline }
 const receivedTasks = new Map() // task_id -> { from, status, payload, createdAt, deadline }
 
+// --- Retry Queue Config ---
+const RETRY_CONFIG = {
+    maxAttempts: 3,
+    baseDelayMs: 5000,      // 5s, 10s, 20s (exponential)
+    maxDelayMs: 60000,      // Cap at 1 minute
+    reaperIntervalMs: 5000  // Check queue every 5s
+}
+
+const deadLetterTasks = new Map()  // task_id -> { ...task, failureReason }
+
+function exponentialBackoff(attemptCount) {
+    const delay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attemptCount)
+    return Math.min(delay, RETRY_CONFIG.maxDelayMs)
+}
+
+function queueTaskForRetry(taskId, task) {
+    task.status = 'queued_for_retry'
+    task.attemptCount = (task.attemptCount || 0) + 1
+    task.lastAttemptAt = Date.now()
+    task.nextRetryTime = Date.now() + exponentialBackoff(task.attemptCount)
+    console.log(`[retry] Task ${taskId} queued, attempt ${task.attemptCount}, retry at ${new Date(task.nextRetryTime).toISOString()}`)
+}
+
+function moveToDeadLetter(taskId, task, reason) {
+    task.status = 'failed'
+    task.failureReason = reason
+    task.failedAt = Date.now()
+    deadLetterTasks.set(taskId, task)
+    sentTasks.delete(taskId)
+    console.log(`[retry] Task ${taskId} moved to dead letter: ${reason}`)
+}
+
 function generateTaskId() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
         const r = Math.random() * 16 | 0
@@ -309,6 +341,58 @@ setInterval(() => {
         }
     }
 }, 30000)
+
+// Retry Reaper (5s) - process queued tasks
+setInterval(() => {
+    const now = Date.now()
+
+    for (const [taskId, task] of sentTasks.entries()) {
+        // Skip non-retryable tasks
+        if (task.status !== 'queued_for_retry' && task.status !== 'pending') continue
+
+        // Check deadline
+        if (task.deadline && task.deadline < now) {
+            moveToDeadLetter(taskId, task, 'Deadline exceeded')
+            continue
+        }
+
+        // Only process queued_for_retry tasks that are ready
+        if (task.status !== 'queued_for_retry') continue
+        if (task.nextRetryTime && task.nextRetryTime > now) continue
+
+        // Find target peer
+        let targetPeer = null
+        for (const [key, peer] of peers.entries()) {
+            const peerShortId = key.slice(-8)
+            if (task.target === '*' || peerShortId === task.target ||
+                peer.manifest?.agent_id?.toLowerCase() === task.target?.toLowerCase()) {
+                targetPeer = { key, peer }
+                break
+            }
+        }
+
+        if (targetPeer) {
+            // Peer back online - re-send
+            const taskPayload = {
+                type: 'task_request',
+                task_id: taskId,
+                task_type: task.task_type,
+                payload: task.payload,
+                deadline: task.deadline,
+                sender: myPeerIdRaw.substring(0, 8)
+            }
+            const signedMsg = signMessage(JSON.stringify(taskPayload))
+            targetPeer.peer.socket.write(Buffer.from(JSON.stringify(signedMsg)))
+            task.status = 'pending'
+            task.lastAttemptAt = now
+            console.log(`[retry] Task ${taskId} re-sent to ${task.target}`)
+        } else if (task.attemptCount >= RETRY_CONFIG.maxAttempts) {
+            moveToDeadLetter(taskId, task, `Peer offline after ${task.attemptCount} attempts`)
+        } else {
+            queueTaskForRetry(taskId, task)
+        }
+    }
+}, RETRY_CONFIG.reaperIntervalMs)
 
 function signMessage(contentString) {
     const signature = crypto.sign(null, Buffer.from(contentString), privateKey)
@@ -632,7 +716,29 @@ app.post('/task/request', requireAuth, (req, res) => {
             }
         }
         if (sentCount === 0) {
-            return res.status(404).json({ error: `Peer '${target}' not found` })
+            // Queue for retry instead of failing
+            sentTasks.set(task_id, {
+                target: target,
+                status: 'queued_for_retry',
+                payload: taskPayload.payload,
+                task_type: taskPayload.task_type,
+                createdAt: Date.now(),
+                deadline: deadline || null,
+                attemptCount: 1,
+                lastAttemptAt: Date.now(),
+                nextRetryTime: Date.now() + exponentialBackoff(1),
+                peerWasOffline: true
+            })
+
+            console.log(`[task] Peer '${target}' offline, task ${task_id} queued for retry`)
+            return res.status(202).json({
+                task_id,
+                status: 'queued_for_retry',
+                target,
+                sent_to: 0,
+                message: `Peer '${target}' offline, queued for retry`,
+                next_retry_at: Date.now() + exponentialBackoff(1)
+            })
         }
     } else {
         // Broadcast to all peers
@@ -753,10 +859,71 @@ app.get('/tasks', requireAuth, (req, res) => {
         received.push({ task_id: id, ...task })
     }
 
+    const queued = []
+    for (const [id, task] of sentTasks.entries()) {
+        if (task.status === 'queued_for_retry') {
+            queued.push({ task_id: id, ...task })
+        }
+    }
+
+    const failed = []
+    for (const [id, task] of deadLetterTasks.entries()) {
+        failed.push({ task_id: id, ...task })
+    }
+
     res.json({
         sent: { count: sent.length, tasks: sent },
-        received: { count: received.length, tasks: received }
+        received: { count: received.length, tasks: received },
+        queued: { count: queued.length, tasks: queued },
+        failed: { count: failed.length, tasks: failed }
     })
+})
+
+// Get retry queue status
+app.get('/tasks/queued', requireAuth, (req, res) => {
+    const queued = []
+    for (const [id, task] of sentTasks.entries()) {
+        if (task.status === 'queued_for_retry') {
+            queued.push({
+                task_id: id,
+                target: task.target,
+                attemptCount: task.attemptCount,
+                nextRetryTime: task.nextRetryTime,
+                timeUntilRetry: Math.max(0, task.nextRetryTime - Date.now())
+            })
+        }
+    }
+    res.json({ count: queued.length, tasks: queued })
+})
+
+// Get dead letter queue
+app.get('/tasks/failed', requireAuth, (req, res) => {
+    const failed = []
+    for (const [id, task] of deadLetterTasks.entries()) {
+        failed.push({ task_id: id, ...task })
+    }
+    res.json({ count: failed.length, tasks: failed })
+})
+
+// Manually retry a failed task
+app.post('/tasks/retry/:task_id', requireAuth, (req, res) => {
+    const { task_id } = req.params
+    const task = deadLetterTasks.get(task_id)
+    if (!task) {
+        return res.status(404).json({ error: 'Task not found in dead letter queue' })
+    }
+
+    // Move back to sentTasks for retry
+    task.status = 'queued_for_retry'
+    task.attemptCount = 0
+    task.nextRetryTime = Date.now()
+    delete task.failureReason
+    delete task.failedAt
+
+    sentTasks.set(task_id, task)
+    deadLetterTasks.delete(task_id)
+
+    res.json({ task_id, status: 'queued_for_retry', message: 'Task requeued' })
 })
 
 // --- CAPABILITY DISCOVERY ---
