@@ -118,7 +118,7 @@ totalUniquePeers.add(myPeerId) // Count ourselves
 // --- Topic Management ---
 const activeTopics = new Map() // topicName -> { topicBuffer, hasSecret, joinedAt }
 
-// --- Task Management (A2A Protocol) ---
+// --- Task Management (Kizuna Task Protocol) ---
 const sentTasks = new Map()     // task_id -> { target, status, payload, createdAt, deadline }
 const receivedTasks = new Map() // task_id -> { from, status, payload, createdAt, deadline }
 
@@ -249,7 +249,7 @@ swarm.on('connection', (socket, info) => {
                     return
                 }
 
-                // Handle Task Request (A2A Protocol)
+                // Handle Task Request (KTP)
                 if (payload.type === 'task_request') {
                     console.log(`[task] Received task request ${payload.task_id} from ${remoteKey}`)
                     receivedTasks.set(payload.task_id, {
@@ -271,7 +271,7 @@ swarm.on('connection', (socket, info) => {
                     return
                 }
 
-                // Handle Task Response (A2A Protocol)
+                // Handle Task Response (KTP)
                 if (payload.type === 'task_response') {
                     console.log(`[task] Received response for task ${payload.task_id}: ${payload.status}`)
                     if (sentTasks.has(payload.task_id)) {
@@ -646,7 +646,7 @@ app.get('/inbox', requireAuth, (req, res) => {
     res.json({ count: messages.length, messages });
 })
 
-// --- TASK DELEGATION ENDPOINTS (A2A Protocol) ---
+// --- TASK DELEGATION ENDPOINTS (Kizuna Task Protocol) ---
 
 // Valid enums for task validation
 const VALID_TASK_TYPES = ['general', 'analysis', 'code_review', 'research', 'test', 'other']

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Test A2A Protocol - Task Delegation Endpoints
+Test Kizuna Task Protocol (KTP) - Task Delegation Endpoints
 
-Run with: python tests/test_a2a_protocol.py
+Run with: python tests/test_ktp_protocol.py
 
 Requires pear_bridge running on localhost:3000
 """
@@ -107,7 +107,7 @@ def test_task_validation():
 
 def main():
     print("=" * 50)
-    print("A2A Protocol - Task Delegation Tests")
+    print("Kizuna Task Protocol (KTP) - Task Delegation Tests")
     print("=" * 50)
 
     try:

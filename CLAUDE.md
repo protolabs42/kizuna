@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to AI coding agents working with this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -11,7 +11,7 @@ The name means "bonds" in Japanese - the connections that tie us together.
 ### What Kizuna Does
 
 - **P2P Mesh**: Agents discover and connect via DHT, no central server
-- **A2A Protocol**: Structured task delegation between agents
+- **Kizuna Task Protocol (KTP)**: Structured task delegation between agents
 - **Cross-Model**: Works with any AI (Anthropic, OpenAI, Google, local models)
 - **MCP Bridge**: Standard interface for agent integration
 
@@ -99,17 +99,22 @@ curl http://localhost:3000/health  # Health check
 | `/join` | POST | Join a topic (public or private) |
 | `/leave` | POST | Leave a topic |
 
-### A2A Protocol - Task Delegation
+### Kizuna Task Protocol (KTP) - Task Delegation
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/task/request` | POST | Send task to peer or broadcast |
+| `/task/request` | POST | Send task to peer or broadcast (queues if offline) |
 | `/task/respond` | POST | Respond to a task (accept/complete/fail) |
 | `/task/status/:id` | GET | Get status of specific task |
-| `/tasks` | GET | List all sent/received tasks |
+| `/tasks` | GET | List all sent/received/queued/failed tasks |
+| `/tasks/queued` | GET | List tasks in retry queue |
+| `/tasks/failed` | GET | List tasks in dead letter queue |
+| `/tasks/retry/:id` | POST | Manually retry a failed task |
 | `/capabilities/search` | GET | Find peers by skill or role |
 
-See `docs/a2a-protocol.md` for full protocol specification.
+Task requests to offline peers return `202 Accepted` with `queued_for_retry` status. Retry uses exponential backoff (5s, 10s, 20s) with max 3 attempts before moving to dead letter queue.
+
+See `docs/ktp-protocol.md` for full protocol specification.
 
 ## MCP Tools
 
@@ -129,7 +134,7 @@ When an agent connects to Kizuna's MCP server, it gains these tools:
 | `swarm_leave_topic` | Leave a topic |
 | `swarm_set_manifest` | Update node capabilities |
 
-### Task Delegation (A2A Protocol)
+### Task Delegation (KTP)
 
 | Tool | Description |
 |------|-------------|
@@ -148,7 +153,7 @@ PORT=3001 DATA_DIR=./node_b node pear_bridge/index.js &
 
 # Run tests
 python tests/test_multinode_integration.py
-python tests/test_a2a_protocol.py
+python tests/test_ktp_protocol.py
 ```
 
 ## Issue Tracking

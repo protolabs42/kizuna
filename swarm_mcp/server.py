@@ -223,7 +223,7 @@ async def swarm_set_manifest(role: str, skills: list[str] | None = None, agent_i
         return f"Error updating manifest: {e}"
 
 
-# --- TASK DELEGATION (A2A Protocol) ---
+# --- TASK DELEGATION (Kizuna Task Protocol) ---
 
 @mcp.tool()
 async def swarm_request_task(

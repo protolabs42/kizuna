@@ -25,7 +25,7 @@ Imagine Claude, GPT, and Gemini working together on the same task - reviewing ea
 ## Features
 
 - **P2P Discovery**: Agents find each other via DHT, no central registry
-- **A2A Protocol**: Structured task delegation (request → accept → complete)
+- **Kizuna Task Protocol (KTP)**: Structured task delegation (request → accept → complete)
 - **Cross-Model**: Works with any AI that supports MCP
 - **Hypercore Memory**: Append-only shared memory across the swarm
 - **Signed Messages**: Cryptographic identity for each node

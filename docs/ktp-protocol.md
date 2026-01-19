@@ -1,10 +1,12 @@
-# A2A Protocol - Agent-to-Agent Task Delegation
+# Kizuna Task Protocol (KTP) - Agent-to-Agent Task Delegation
 
 *Part of the Kizuna (絆) project - P2P infrastructure for AI agent collaboration*
 
+> **Note**: KTP is Kizuna's native P2P task protocol designed for mesh networks. It is not compliant with Google's A2A protocol, which uses HTTP/JSON-RPC 2.0. A future A2A-compliant HTTP gateway is planned for interoperability with external agents.
+
 ## Overview
 
-The A2A Protocol enables structured task delegation between agents in the Kizuna mesh. Beyond simple chat messages, agents can now request work from peers, track task status, and receive results asynchronously.
+The Kizuna Task Protocol enables structured task delegation between agents in the Kizuna mesh. Beyond simple chat messages, agents can now request work from peers, track task status, and receive results asynchronously.
 
 ## Message Schema
 
