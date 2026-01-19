@@ -169,11 +169,24 @@ bd sync               # Sync with git
 # P2P Bridge
 PORT=3000
 DATA_DIR=./node_data
+KIZUNA_API_KEY=        # Optional: API key for auth (enables external access)
+BIND_HOST=             # Optional: Override bind host (default: 127.0.0.1 or 0.0.0.0 with API key)
 
 # MCP Server
 BRIDGE_URL=http://localhost:3000
 MCP_PORT=8000
+BRIDGE_API_KEY=        # Must match KIZUNA_API_KEY if auth is enabled
 ```
+
+### Security Modes
+
+| Mode | Config | Behavior |
+|------|--------|----------|
+| **Localhost-only** (default) | No `KIZUNA_API_KEY` | Binds to 127.0.0.1, no auth required |
+| **External + Auth** | `KIZUNA_API_KEY=secret` | Binds to 0.0.0.0, requires Bearer token |
+
+When auth is enabled, all sensitive endpoints require `Authorization: Bearer <key>` header.
+Public endpoints (`/health`, `/dashboard`) remain accessible without auth.
 
 ## Session Completion
 

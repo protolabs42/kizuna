@@ -24,6 +24,7 @@ services:
       - PORT=3000
       - DATA_DIR=/app/node_data
       - NODE_NAME=Sophie
+      - KIZUNA_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "3000:3000"
     volumes:
@@ -47,6 +48,7 @@ services:
       - BRIDGE_URL=http://bridge-sophie:3000
       - MCP_PORT=8000
       - MCP_HOST=0.0.0.0
+      - BRIDGE_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -74,6 +76,7 @@ services:
       - PORT=3000
       - DATA_DIR=/app/node_data
       - NODE_NAME=Ruby
+      - KIZUNA_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "3001:3000"
     volumes:
@@ -97,6 +100,7 @@ services:
       - BRIDGE_URL=http://bridge-ruby:3000
       - MCP_PORT=8000
       - MCP_HOST=0.0.0.0
+      - BRIDGE_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "8001:8000"
     depends_on:
@@ -124,6 +128,7 @@ services:
       - PORT=3000
       - DATA_DIR=/app/node_data
       - NODE_NAME=AgentZero
+      - KIZUNA_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "3002:3000"
     volumes:
@@ -147,6 +152,7 @@ services:
       - BRIDGE_URL=http://bridge-agent0:3000
       - MCP_PORT=8000
       - MCP_HOST=0.0.0.0
+      - BRIDGE_API_KEY=${KIZUNA_API_KEY:-}
     ports:
       - "8002:8000"
     depends_on:

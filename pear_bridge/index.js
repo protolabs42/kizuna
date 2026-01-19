@@ -25,6 +25,37 @@ const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 console.log(`[config] Data Dir: ${DATA_DIR}`);
 
+// --- AUTH CONFIG ---
+const API_KEY = process.env.KIZUNA_API_KEY || ''
+const BIND_HOST = process.env.BIND_HOST || ''
+
+/**
+ * Auth middleware for sensitive endpoints
+ * - If no API_KEY set: localhost mode, no auth required
+ * - If API_KEY set: requires Bearer token
+ */
+function requireAuth(req, res, next) {
+    if (!API_KEY) return next()  // Localhost mode, no auth needed
+
+    const authHeader = req.headers.authorization
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Unauthorized', message: 'Bearer token required' })
+    }
+
+    const [type, token] = authHeader.split(' ')
+    if (type?.toLowerCase() !== 'bearer' || !token) {
+        return res.status(401).json({ error: 'Unauthorized', message: 'Invalid authorization format' })
+    }
+
+    // Timing-safe comparison to prevent timing attacks
+    if (token.length !== API_KEY.length ||
+        !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(API_KEY))) {
+        return res.status(403).json({ error: 'Forbidden', message: 'Invalid API key' })
+    }
+
+    next()
+}
+
 // --- HYPERCORE INIT ---
 const core = new Hypercore(path.join(DATA_DIR, 'blackboard'));
 core.ready().then(() => {
@@ -313,7 +344,7 @@ app.get('/dashboard', (req, res) => {
     } catch (err) { res.status(500).send('Error') }
 })
 
-app.get('/info', (req, res) => {
+app.get('/info', requireAuth, (req, res) => {
     res.json({ peerId: myPeerId, publicKey: myPeerId, manifest: myManifest })
 })
 
@@ -349,7 +380,7 @@ app.get('/stats', (req, res) => {
     })
 })
 
-app.post('/manifest', (req, res) => {
+app.post('/manifest', requireAuth, (req, res) => {
     const { role, skills, agent_id, specs } = req.body
     if (role) myManifest.role = role
     if (skills) myManifest.skills = skills
@@ -372,7 +403,7 @@ app.post('/manifest', (req, res) => {
     res.json({ status: 'updated', manifest: myManifest })
 })
 
-app.get('/peers', (req, res) => {
+app.get('/peers', requireAuth, (req, res) => {
     // Return detailed peer list with manifests
     const peerList = []
     for (const [key, peer] of peers.entries()) {
@@ -386,7 +417,7 @@ app.get('/peers', (req, res) => {
 })
 
 // --- Topic Endpoints ---
-app.post('/join', (req, res) => {
+app.post('/join', requireAuth, (req, res) => {
     const { topic, secret } = req.body
     if (!topic) return res.status(400).json({ error: 'Missing topic' })
     const topicHash = joinTopic(topic, secret || '')
@@ -398,7 +429,7 @@ app.post('/join', (req, res) => {
     })
 })
 
-app.post('/leave', (req, res) => {
+app.post('/leave', requireAuth, (req, res) => {
     const { topic } = req.body
     if (!topic) return res.status(400).json({ error: 'Missing topic' })
     const success = leaveTopic(topic)
@@ -406,7 +437,7 @@ app.post('/leave', (req, res) => {
     res.json({ status: 'left', topic })
 })
 
-app.get('/topics', (req, res) => {
+app.get('/topics', requireAuth, (req, res) => {
     const topics = [...activeTopics.entries()].map(([name, info]) => ({
         name,
         private: info.hasSecret,
@@ -416,12 +447,12 @@ app.get('/topics', (req, res) => {
     res.json({ count: topics.length, topics })
 })
 
-app.post('/entropy', (req, res) => {
+app.post('/entropy', requireAuth, (req, res) => {
     entropyEnabled = !entropyEnabled
     res.json({ enabled: entropyEnabled })
 })
 
-app.post('/broadcast', (req, res) => {
+app.post('/broadcast', requireAuth, (req, res) => {
     console.log('[debug] broadcast received:', req.body)
     const { content } = req.body
 
@@ -456,7 +487,7 @@ app.post('/broadcast', (req, res) => {
 
 const PORT = process.env.PORT || 3000
 // --- MEMORY ENDPOINTS ---
-app.post('/memory', async (req, res) => {
+app.post('/memory', requireAuth, async (req, res) => {
     try {
         const { content } = req.body;
         if (!content) return res.status(400).json({ error: 'Content required' });
@@ -472,7 +503,7 @@ app.post('/memory', async (req, res) => {
     }
 });
 
-app.get('/memory', async (req, res) => {
+app.get('/memory', requireAuth, async (req, res) => {
     try {
         // Read last 100 items by default
         const start = Math.max(0, core.length - 100);
@@ -490,7 +521,7 @@ app.get('/memory', async (req, res) => {
 });
 
 // --- STORAGE ENDPOINTS ---
-app.post('/storage', async (req, res) => {
+app.post('/storage', requireAuth, async (req, res) => {
     try {
         const { filename, content } = req.body; // Expects base64 content
         if (!filename || !content) return res.status(400).json({ error: 'filename and content(base64) required' });
@@ -503,7 +534,7 @@ app.post('/storage', async (req, res) => {
     }
 });
 
-app.get('/storage', async (req, res) => {
+app.get('/storage', requireAuth, async (req, res) => {
     try {
         const files = [];
         for await (const entry of drive.entries()) {
@@ -515,7 +546,7 @@ app.get('/storage', async (req, res) => {
     }
 });
 
-app.get('/storage/:filename', async (req, res) => {
+app.get('/storage/:filename', requireAuth, async (req, res) => {
     try {
         const buffer = await drive.get(req.params.filename);
         if (!buffer) return res.status(404).json({ error: 'File not found' });
@@ -525,7 +556,7 @@ app.get('/storage/:filename', async (req, res) => {
     }
 });
 
-app.get('/inbox', (req, res) => {
+app.get('/inbox', requireAuth, (req, res) => {
     const messages = [...inbox];
     inbox.length = 0; // Clear inbox on read (Pop logic)
     res.json({ count: messages.length, messages });
@@ -540,7 +571,7 @@ const MAX_DESCRIPTION_LENGTH = 10000
 const MAX_CONTEXT_SIZE = 50000
 
 // Send a task request to a peer or broadcast
-app.post('/task/request', (req, res) => {
+app.post('/task/request', requireAuth, (req, res) => {
     const { task_type, description, context, target, priority, deadline } = req.body
 
     if (!description) {
@@ -631,7 +662,7 @@ app.post('/task/request', (req, res) => {
 })
 
 // Respond to a task (accept, complete, fail, reject)
-app.post('/task/respond', (req, res) => {
+app.post('/task/respond', requireAuth, (req, res) => {
     const { task_id, status, result, error } = req.body
 
     if (!task_id) {
@@ -686,7 +717,7 @@ app.post('/task/respond', (req, res) => {
 })
 
 // Get status of a specific task
-app.get('/task/status/:task_id', (req, res) => {
+app.get('/task/status/:task_id', requireAuth, (req, res) => {
     const { task_id } = req.params
 
     const sent = sentTasks.get(task_id)
@@ -711,7 +742,7 @@ app.get('/task/status/:task_id', (req, res) => {
 })
 
 // List all tasks
-app.get('/tasks', (req, res) => {
+app.get('/tasks', requireAuth, (req, res) => {
     const sent = []
     for (const [id, task] of sentTasks.entries()) {
         sent.push({ task_id: id, ...task })
@@ -731,7 +762,7 @@ app.get('/tasks', (req, res) => {
 // --- CAPABILITY DISCOVERY ---
 
 // Search peers by skill
-app.get('/capabilities/search', (req, res) => {
+app.get('/capabilities/search', requireAuth, (req, res) => {
     const { skill, role } = req.query
     const matches = []
 
@@ -766,6 +797,14 @@ app.get('/capabilities/search', (req, res) => {
     })
 })
 
-app.listen(PORT, () => {
-    console.log(`[bridge] Listening on http://localhost:${PORT}`)
+// Secure by default: localhost-only unless API key is set
+const bindHost = API_KEY ? '0.0.0.0' : (BIND_HOST || '127.0.0.1')
+
+if (bindHost === '0.0.0.0' && !API_KEY) {
+    console.warn('[SECURITY] WARNING: Binding to 0.0.0.0 without API key is insecure!')
+}
+
+app.listen(PORT, bindHost, () => {
+    const mode = API_KEY ? 'auth-required' : 'localhost-only'
+    console.log(`[bridge] Listening on http://${bindHost}:${PORT} (${mode} mode)`)
 })
