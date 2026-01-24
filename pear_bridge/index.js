@@ -108,7 +108,6 @@ let myManifest = {
 const swarm = new Hyperswarm()
 const peers = new Map() // peerKey -> { socket, lastSeen, interval, manifest }
 const inbox = [] // Buffer for incoming messages
-let entropyEnabled = false
 
 // --- Stats Tracking ---
 const totalUniquePeers = new Set() // All peers ever seen (persists across reconnects)
@@ -330,18 +329,6 @@ setInterval(() => {
     }
 }, 5000)
 
-// Entropy Reaper (30s)
-setInterval(() => {
-    if (!entropyEnabled) return
-    console.log('[entropy] Rotating...')
-    for (const [key, peer] of peers.entries()) {
-        if (Math.random() > 0.5) {
-            peer.socket.destroy()
-            cleanupPeer(key)
-        }
-    }
-}, 30000)
-
 // Retry Reaper (5s) - process queued tasks
 setInterval(() => {
     const now = Date.now()
@@ -529,11 +516,6 @@ app.get('/topics', requireAuth, (req, res) => {
         hash: info.topicBuffer.toString('hex').slice(0, 8) // Short hash for display
     }))
     res.json({ count: topics.length, topics })
-})
-
-app.post('/entropy', requireAuth, (req, res) => {
-    entropyEnabled = !entropyEnabled
-    res.json({ enabled: entropyEnabled })
 })
 
 app.post('/broadcast', requireAuth, (req, res) => {
